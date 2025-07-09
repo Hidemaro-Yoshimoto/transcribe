@@ -202,6 +202,72 @@ function App() {
     }
   };
 
+  // 履歴削除
+  const handleDeleteHistory = async (recordId) => {
+    if (!confirm('この履歴を削除してもよろしいですか？')) {
+      return;
+    }
+
+    try {
+      console.log('🗑️ Deleting record:', recordId);
+      
+      const response = await fetch(`${API_BASE_URL}/api/delete/${recordId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Delete successful:', data);
+        
+        // 削除された項目が現在選択中の場合、選択を解除
+        if (selectedTranscription && selectedTranscription.id === recordId) {
+          setSelectedTranscription(null);
+          setView('upload');
+        }
+        
+        // 履歴を更新
+        fetchHistory();
+        showNotification('履歴が削除されました', 'success');
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '削除に失敗しました');
+      }
+    } catch (error) {
+      console.error('❌ Delete error:', error);
+      showNotification(error.message, 'error');
+    }
+  };
+
+  // 履歴リネーム
+  const handleRenameHistory = async (recordId, newName) => {
+    try {
+      console.log('📝 Renaming record:', recordId, 'to:', newName);
+      
+      const response = await fetch(`${API_BASE_URL}/api/rename/${recordId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: newName }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Rename successful:', data);
+        
+        // 履歴を更新
+        fetchHistory();
+        showNotification('名前が変更されました', 'success');
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '名前の変更に失敗しました');
+      }
+    } catch (error) {
+      console.error('❌ Rename error:', error);
+      showNotification(error.message, 'error');
+    }
+  };
+
   // 戻る
   const handleBack = () => {
     setView('upload');
@@ -269,6 +335,8 @@ function App() {
           isOpen={sidebarOpen}
           onToggle={handleToggleSidebar}
           onLogoClick={handleLogoClick}
+          onDeleteHistory={handleDeleteHistory}
+          onRenameHistory={handleRenameHistory}
         />
 
         {/* Main Content */}
