@@ -2,11 +2,18 @@
 import { createClient } from '@supabase/supabase-js'
 import formidable from 'formidable'
 import { v4 as uuidv4 } from 'uuid'
+import OpenAI from 'openai'
+import fs from 'fs'
+import path from 'path'
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_ANON_KEY
 )
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+})
 
 export const config = {
   api: {
@@ -124,59 +131,118 @@ export default async function handler(req, res) {
       protocol: req.headers['x-forwarded-proto'] || 'http'
     })
     
-    // Try to start transcription process via HTTP
-    try {
-      console.log('🔄 Starting transcription via HTTP call...')
-      
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 seconds timeout
-      
-      const transcribeResponse = await fetch(`${baseUrl}/api/transcribe`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'User-Agent': 'Vercel-Internal-Call'
-        },
-        body: JSON.stringify({
-          taskId,
-          fileName,
-          originalFilename: file.originalFilename,
-          fileSize: file.size,
-        }),
-        signal: controller.signal
-      })
-      
-      clearTimeout(timeoutId)
-      
-      console.log('🎵 Transcribe response status:', transcribeResponse.status)
-      
-      if (!transcribeResponse.ok) {
-        const errorText = await transcribeResponse.text()
-        console.error('❌ Transcribe response error:', errorText)
+    // Start transcription process directly in upload function
+    console.log('🔄 Starting transcription process directly...')
+    
+    // Use setTimeout to run transcription in background
+    setTimeout(async () => {
+      try {
+        console.log('🎵 Starting background transcription...')
+        
+        // Update status to processing
+        await supabase
+          .from('transcription_records')
+          .update({ status: 'processing' })
+          .eq('id', taskId)
+
+        // Update progress to 50%
+        await supabase
+          .from('task_progress')
+          .upsert({
+            task_id: taskId,
+            progress: 50,
+            message: 'Starting transcription...',
+            updated_at: new Date().toISOString(),
+          })
+
+        // Download file from Supabase Storage
+        console.log('⬇️ Downloading file from Supabase...')
+        const { data: fileData, error: downloadError } = await supabase.storage
+          .from('audio-files')
+          .download(fileName)
+
+        if (downloadError) {
+          throw downloadError
+        }
+
+        // Convert to buffer and save temporarily
+        const buffer = await fileData.arrayBuffer()
+        const tempDir = '/tmp'
+        const tempFilePath = path.join(tempDir, fileName)
+        
+        fs.writeFileSync(tempFilePath, Buffer.from(buffer))
+        console.log('✅ File saved temporarily')
+
+        // Update progress to 70%
+        await supabase
+          .from('task_progress')
+          .upsert({
+            task_id: taskId,
+            progress: 70,
+            message: 'Transcribing audio...',
+            updated_at: new Date().toISOString(),
+          })
+
+        // Transcribe with OpenAI
+        console.log('🤖 Starting OpenAI transcription...')
+        const audioFile = fs.createReadStream(tempFilePath)
+        const transcript = await openai.audio.transcriptions.create({
+          file: audioFile,
+          model: 'whisper-1',
+          response_format: 'text',
+        })
+
+        audioFile.destroy()
+        console.log('✅ Transcription completed')
+
+        // Update database with results
+        await supabase
+          .from('transcription_records')
+          .update({
+            status: 'completed',
+            transcription_text: transcript,
+            duration: null,
+            completed_at: new Date().toISOString(),
+          })
+          .eq('id', taskId)
+
+        // Update progress to 100%
+        await supabase
+          .from('task_progress')
+          .upsert({
+            task_id: taskId,
+            progress: 100,
+            message: 'Transcription completed!',
+            updated_at: new Date().toISOString(),
+          })
+
+        // Cleanup
+        try {
+          fs.unlinkSync(tempFilePath)
+        } catch (cleanupError) {
+          console.error('Cleanup error:', cleanupError)
+        }
+
+        // Delete file from storage
+        await supabase.storage
+          .from('audio-files')
+          .remove([fileName])
+
+        console.log('🎉 Transcription process completed successfully!')
+
+      } catch (error) {
+        console.error('❌ Background transcription error:', error)
         
         // Update database with error
         await supabase
           .from('transcription_records')
           .update({
             status: 'failed',
-            error_message: `Transcription HTTP call failed: ${transcribeResponse.status} - ${errorText}`,
+            error_message: error.message,
           })
           .eq('id', taskId)
-      } else {
-        console.log('✅ Transcription HTTP call successful')
       }
-    } catch (error) {
-      console.error('❌ Transcription trigger error:', error)
-      
-      // Update database with error
-      await supabase
-        .from('transcription_records')
-        .update({
-          status: 'failed',
-          error_message: 'Failed to start transcription process: ' + error.message,
-        })
-        .eq('id', taskId)
-    }
+    }, 1000) // Start after 1 second delay
 
     console.log('✅ Upload completed successfully')
     return res.status(200).json({
