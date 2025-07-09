@@ -19,6 +19,7 @@ export const config = {
   api: {
     bodyParser: false,
     responseLimit: false,
+    sizeLimit: '400mb', // Set body size limit to 400MB
   },
   maxDuration: 900, // 15 minutes (for larger files)
 }
@@ -32,19 +33,43 @@ export default async function handler(req, res) {
 
   try {
     console.log('📝 Starting file processing...')
+    console.log('📊 Request headers:', {
+      'content-length': req.headers['content-length'],
+      'content-type': req.headers['content-type'],
+      'user-agent': req.headers['user-agent']
+    })
+    
     // Parse form data - handling large files up to 400MB
     const form = formidable({
       maxFileSize: 400 * 1024 * 1024, // 400MB
+      keepExtensions: true,
+      multiples: false,
     })
 
     const [fields, files] = await form.parse(req)
     const file = files.file[0]
     
+    if (!file) {
+      console.log('❌ No file received')
+      return res.status(400).json({ error: 'No file uploaded' })
+    }
+    
     console.log('📁 File parsed:', {
       name: file.originalFilename,
       size: file.size,
-      type: file.mimetype
+      type: file.mimetype,
+      sizeInMB: (file.size / (1024 * 1024)).toFixed(2) + 'MB'
     })
+    
+    // Check file size before processing
+    if (file.size > 400 * 1024 * 1024) {
+      console.log('❌ File too large:', file.size, 'bytes')
+      return res.status(413).json({ 
+        error: 'File size exceeds 400MB limit',
+        received_size: file.size,
+        max_size: 400 * 1024 * 1024
+      })
+    }
 
     // Validate file type
     const allowedTypes = ['.mp3', '.wav', '.m4a', '.mp4', '.avi', '.mov', '.mkv']
@@ -334,9 +359,28 @@ export default async function handler(req, res) {
     }
 
   } catch (error) {
-    console.error('Upload error:', error)
+    console.error('❌ Upload error:', error)
+    
+    // Handle specific error types
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ 
+        error: 'File size exceeds limit',
+        details: error.message,
+        max_size: '400MB'
+      })
+    }
+    
+    if (error.code === 'ENOENT') {
+      return res.status(400).json({ 
+        error: 'File not found or corrupted',
+        details: error.message
+      })
+    }
+    
     return res.status(500).json({ 
-      error: error.message || 'Upload failed' 
+      error: error.message || 'Upload failed',
+      code: error.code,
+      details: error.stack
     })
   }
 }

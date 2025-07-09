@@ -5,10 +5,13 @@
   "framework": null,
   "functions": {
     "api/upload.js": {
-      "maxDuration": 60
+      "maxDuration": 900
     },
     "api/transcribe.js": {
-      "maxDuration": 300
+      "maxDuration": 900
+    },
+    "api/create-task.js": {
+      "maxDuration": 900
     }
   },
   "rewrites": [

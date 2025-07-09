@@ -1,20 +1,44 @@
 import React, { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
+import { UploadService } from '../lib/uploadService';
 
 const MinimalUploadArea = ({ onUpload, isUploading, hasActiveTask, recentTranscription, onDownload, showNotification }) => {
-  const onDrop = useCallback((acceptedFiles) => {
+  const onDrop = useCallback(async (acceptedFiles) => {
     if (acceptedFiles.length > 0) {
       const file = acceptedFiles[0];
       const maxSize = 400 * 1024 * 1024; // 400MB
       
       if (file.size > maxSize) {
-        alert('ファイルサイズが大きすぎます。400MB以下のファイルをアップロードしてください。');
+        showNotification('ファイルサイズが大きすぎます。400MB以下のファイルをアップロードしてください。', 'error');
         return;
       }
       
-      onUpload(file);
+      // Use direct upload service
+      try {
+        console.log('🚀 Starting direct upload process...');
+        showNotification('アップロード開始中...', 'info');
+        
+        // Step 1: Upload directly to Supabase
+        const uploadResult = await UploadService.uploadFileDirectly(file);
+        console.log('✅ Direct upload completed:', uploadResult);
+        
+        // Step 2: Create transcription task
+        const taskResult = await UploadService.createTranscriptionTask(uploadResult);
+        console.log('✅ Task created:', taskResult);
+        
+        // Call parent onUpload with task info
+        onUpload({
+          task_id: taskResult.task_id,
+          message: taskResult.message,
+          originalFilename: uploadResult.originalFilename
+        });
+        
+      } catch (error) {
+        console.error('❌ Direct upload failed:', error);
+        showNotification(`アップロードに失敗しました: ${error.message}`, 'error');
+      }
     }
-  }, [onUpload]);
+  }, [onUpload, showNotification]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,

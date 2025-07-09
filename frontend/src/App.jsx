@@ -116,59 +116,22 @@ function App() {
     setNotification({ message, type });
   };
 
-  // ファイルアップロード
-  const handleUpload = async (file) => {
-    console.log('🚀 Upload started:', {
-      fileName: file.name,
-      fileSize: file.size,
-      fileType: file.type
-    });
+  // ファイルアップロード（直接アップロード対応）
+  const handleUpload = async (uploadData) => {
+    console.log('🚀 Upload started (direct):', uploadData);
     
     setIsUploading(true);
     setCurrentTask(null);
     setView('progress');
 
-    const formData = new FormData();
-    formData.append('file', file);
-
     try {
-      console.log('📤 Sending upload request to:', `${API_BASE_URL}/api/upload`);
-      
-      const response = await fetch(`${API_BASE_URL}/api/upload`, {
-        method: 'POST',
-        body: formData
+      setCurrentTask({
+        task_id: uploadData.task_id,
+        status: 'pending',
+        progress: 0,
+        message: uploadData.message || 'アップロード完了。処理を開始します...'
       });
-
-      console.log('📨 Upload response status:', response.status);
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ Upload successful:', data);
-        
-        setCurrentTask({
-          task_id: data.task_id,
-          status: 'pending',
-          progress: 0,
-          message: 'アップロード完了。処理を開始します...'
-        });
-        showNotification('ファイルがアップロードされました', 'success');
-      } else {
-        let errorMessage = 'アップロードに失敗しました';
-        
-        if (response.status === 413) {
-          errorMessage = 'ファイルサイズが大きすぎます。400MB以下のファイルをアップロードしてください。';
-        } else {
-          try {
-            const errorData = await response.json();
-            errorMessage = errorData.error || errorData.detail || errorMessage;
-          } catch (parseError) {
-            // JSONパースできない場合はステータスコードベースのメッセージ
-            errorMessage = `サーバーエラー (${response.status}): ${errorMessage}`;
-          }
-        }
-        
-        throw new Error(errorMessage);
-      }
+      showNotification('ファイルがアップロードされました', 'success');
     } catch (error) {
       console.error('❌ Upload error:', error);
       setIsUploading(false);
