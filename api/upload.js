@@ -42,10 +42,14 @@ export default async function handler(req, res) {
     const taskId = uuidv4()
     const fileName = `${taskId}_${file.originalFilename}`
 
+    // Read file data
+    const fs = require('fs')
+    const fileBuffer = fs.readFileSync(file.filepath)
+    
     // Upload to Supabase Storage
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('audio-files')
-      .upload(fileName, file, {
+      .upload(fileName, fileBuffer, {
         contentType: file.mimetype,
       })
 
@@ -71,7 +75,11 @@ export default async function handler(req, res) {
     }
 
     // Trigger transcription function
-    const transcriptionResponse = await fetch(`${process.env.VERCEL_URL}/api/transcribe`, {
+    const baseUrl = process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}` 
+      : 'http://localhost:3000'
+    
+    const transcriptionResponse = await fetch(`${baseUrl}/api/transcribe`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

@@ -8,7 +8,7 @@ import MobileHeader from './components/MobileHeader';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || (
   import.meta.env.MODE === 'production' 
-    ? 'https://your-railway-api.up.railway.app' 
+    ? '' // Vercelでは相対パスを使用
     : 'http://localhost:8000'
 );
 
@@ -24,7 +24,7 @@ function App() {
   // 履歴を取得
   const fetchHistory = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/history`);
+      const response = await fetch(`${API_BASE_URL}/api/history`);
       if (response.ok) {
         const data = await response.json();
         setHistory(data);
@@ -45,7 +45,7 @@ function App() {
 
     const pollStatus = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/status/${currentTask.task_id}`);
+        const response = await fetch(`${API_BASE_URL}/api/status/${currentTask.task_id}`);
         if (response.ok) {
           const data = await response.json();
           setCurrentTask(data);
@@ -96,7 +96,7 @@ function App() {
     formData.append('file', file);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/upload`, {
+      const response = await fetch(`${API_BASE_URL}/api/upload`, {
         method: 'POST',
         body: formData
       });
@@ -125,7 +125,7 @@ function App() {
   // ファイルダウンロード
   const handleDownload = async (recordId) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/download/${recordId}`);
+      const response = await fetch(`${API_BASE_URL}/api/download/${recordId}`);
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
