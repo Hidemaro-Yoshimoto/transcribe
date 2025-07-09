@@ -9,11 +9,6 @@
       "destination": "/api/$1"
     }
   ],
-  "functions": {
-    "api/**/*.js": {
-      "runtime": "nodejs18.x"
-    }
-  },
   "builds": [
     {
       "src": "frontend/package.json",
