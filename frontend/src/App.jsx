@@ -45,12 +45,17 @@ function App() {
 
     const pollStatus = async () => {
       try {
+        console.log('🔄 Polling status for task:', currentTask.task_id);
         const response = await fetch(`${API_BASE_URL}/api/status/${currentTask.task_id}`);
+        console.log('📊 Status response:', response.status);
+        
         if (response.ok) {
           const data = await response.json();
+          console.log('📈 Status data:', data);
           setCurrentTask(data);
 
           if (data.status === 'completed') {
+            console.log('🎉 Transcription completed!');
             setIsUploading(false);
             showNotification('文字起こしが完了しました', 'success');
             setTimeout(() => {
@@ -59,6 +64,7 @@ function App() {
               setView('upload');
             }, 2000);
           } else if (data.status === 'failed') {
+            console.log('💥 Transcription failed:', data.error);
             setIsUploading(false);
             showNotification(`エラー: ${data.error || '文字起こしに失敗しました'}`, 'error');
             setTimeout(() => {
@@ -66,10 +72,18 @@ function App() {
               setCurrentTask(null);
               setView('upload');
             }, 2000);
+          } else {
+            console.log('⏳ Still processing...', {
+              status: data.status,
+              progress: data.progress,
+              message: data.message
+            });
           }
+        } else {
+          console.error('❌ Status request failed:', response.status);
         }
       } catch (error) {
-        console.error('ステータス取得エラー:', error);
+        console.error('❌ Status polling error:', error);
         setIsUploading(false);
         setCurrentTask(null);
         setView('upload');
@@ -88,6 +102,12 @@ function App() {
 
   // ファイルアップロード
   const handleUpload = async (file) => {
+    console.log('🚀 Upload started:', {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type
+    });
+    
     setIsUploading(true);
     setCurrentTask(null);
     setView('progress');
@@ -96,13 +116,19 @@ function App() {
     formData.append('file', file);
 
     try {
+      console.log('📤 Sending upload request to:', `${API_BASE_URL}/api/upload`);
+      
       const response = await fetch(`${API_BASE_URL}/api/upload`, {
         method: 'POST',
         body: formData
       });
 
+      console.log('📨 Upload response status:', response.status);
+
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ Upload successful:', data);
+        
         setCurrentTask({
           task_id: data.task_id,
           status: 'pending',
@@ -128,7 +154,7 @@ function App() {
         throw new Error(errorMessage);
       }
     } catch (error) {
-      console.error('アップロードエラー:', error);
+      console.error('❌ Upload error:', error);
       setIsUploading(false);
       setView('upload');
       showNotification(error.message, 'error');

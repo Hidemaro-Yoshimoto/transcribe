@@ -12,6 +12,7 @@ export default async function handler(req, res) {
   }
 
   const { taskId } = req.query
+  console.log('📊 Status check for task:', taskId)
 
   try {
     // Get transcription record
@@ -22,8 +23,15 @@ export default async function handler(req, res) {
       .single()
 
     if (recordError || !record) {
+      console.log('❌ Task not found:', taskId, recordError)
       return res.status(404).json({ error: 'Task not found' })
     }
+    
+    console.log('📝 Record found:', {
+      id: record.id,
+      status: record.status,
+      filename: record.original_filename
+    })
 
     // Get progress if processing
     let progress = 0
@@ -73,10 +81,11 @@ export default async function handler(req, res) {
         break
     }
 
+    console.log('📤 Returning status:', response)
     return res.status(200).json(response)
 
   } catch (error) {
-    console.error('Status check error:', error)
+    console.error('❌ Status check error:', error)
     return res.status(500).json({ 
       error: 'Failed to check task status' 
     })
