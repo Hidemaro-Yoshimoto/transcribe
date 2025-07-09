@@ -20,6 +20,7 @@ function App() {
   const [selectedTranscription, setSelectedTranscription] = useState(null);
   const [view, setView] = useState('upload'); // 'upload', 'progress', 'transcription'
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [recentTranscription, setRecentTranscription] = useState(null);
 
   // 履歴を取得
   const fetchHistory = async () => {
@@ -58,6 +59,21 @@ function App() {
             console.log('🎉 Transcription completed!');
             setIsUploading(false);
             showNotification('文字起こしが完了しました', 'success');
+            
+            // 最新の文字起こし結果を取得して表示
+            try {
+              const response = await fetch(`${API_BASE_URL}/api/history`);
+              if (response.ok) {
+                const historyData = await response.json();
+                const latestTranscription = historyData.find(item => item.id === data.task_id);
+                if (latestTranscription) {
+                  setRecentTranscription(latestTranscription);
+                }
+              }
+            } catch (error) {
+              console.error('Failed to fetch latest transcription:', error);
+            }
+            
             setTimeout(() => {
               fetchHistory();
               setCurrentTask(null);
@@ -190,6 +206,7 @@ function App() {
     setView('upload');
     setSelectedTranscription(null);
     setCurrentTask(null);
+    setRecentTranscription(null);
     setSidebarOpen(false); // モバイルでサイドバーを閉じる
   };
 
@@ -198,6 +215,7 @@ function App() {
     if (item.status === 'completed') {
       setSelectedTranscription(item);
       setView('transcription');
+      setRecentTranscription(null);
       setSidebarOpen(false); // モバイルでサイドバーを閉じる
     }
   };
@@ -279,6 +297,7 @@ function App() {
     setView('upload');
     setSelectedTranscription(null);
     setCurrentTask(null);
+    setRecentTranscription(null);
     setSidebarOpen(false);
   };
 
@@ -312,6 +331,8 @@ function App() {
             onUpload={handleUpload}
             isUploading={isUploading}
             hasActiveTask={hasActiveTask}
+            recentTranscription={recentTranscription}
+            onDownload={handleDownload}
           />
         );
     }
