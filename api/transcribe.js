@@ -17,12 +17,25 @@ const openai = new OpenAI({
 export default async function handler(req, res) {
   console.log('🎵 Transcribe API called')
   
+  // Check environment variables
+  console.log('🔧 Environment check:', {
+    hasSupabaseUrl: !!process.env.SUPABASE_URL,
+    hasSupabaseKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    hasOpenAIKey: !!process.env.OPENAI_API_KEY,
+    supabaseUrl: process.env.SUPABASE_URL?.substring(0, 30) + '...',
+  })
+  
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
   const { taskId, fileName, originalFilename, fileSize } = req.body
   console.log('📝 Transcription request:', { taskId, fileName, originalFilename, fileSize })
+
+  if (!taskId || !fileName) {
+    console.log('❌ Missing required parameters')
+    return res.status(400).json({ error: 'Missing required parameters' })
+  }
 
   try {
     // Update status to processing

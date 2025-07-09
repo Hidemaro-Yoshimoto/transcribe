@@ -105,34 +105,84 @@ export default async function handler(req, res) {
         updated_at: new Date().toISOString(),
       })
 
-    // Start transcription process (fire and forget)
+    // Start transcription process
     const baseUrl = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}` 
-      : 'http://localhost:3000'
+      ? (process.env.VERCEL_URL.startsWith('http') ? process.env.VERCEL_URL : `https://${process.env.VERCEL_URL}`)
+      : (req.headers.origin || 'http://localhost:3000')
     
     console.log('🚀 Triggering transcription process:', `${baseUrl}/api/transcribe`)
+    console.log('🔧 Environment info:', {
+      vercelUrl: process.env.VERCEL_URL,
+      origin: req.headers.origin,
+      host: req.headers.host,
+      finalUrl: baseUrl
+    })
     
-    // Don't wait for the response - fire and forget
-    fetch(`${baseUrl}/api/transcribe`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        taskId,
-        fileName,
-        originalFilename: file.originalFilename,
-        fileSize: file.size,
-      }),
-    }).catch(error => {
+    // Try to start transcription process
+    try {
+      // Alternative approach: Call transcribe directly
+      if (process.env.NODE_ENV === 'production') {
+        // In production, try internal function call first
+        console.log('🔄 Attempting direct transcription call...')
+        
+        // Import and call transcribe function directly
+        const transcribeHandler = (await import('./transcribe.js')).default
+        
+        const mockTranscribeReq = {
+          method: 'POST',
+          body: {
+            taskId,
+            fileName,
+            originalFilename: file.originalFilename,
+            fileSize: file.size,
+          }
+        }
+        
+        const mockTranscribeRes = {
+          status: (code) => ({ json: (data) => console.log('Transcribe result:', code, data) }),
+          json: (data) => console.log('Transcribe json:', data)
+        }
+        
+        // Start transcription in background (don't await)
+        transcribeHandler(mockTranscribeReq, mockTranscribeRes).catch(error => {
+          console.error('❌ Direct transcription error:', error)
+          supabase
+            .from('transcription_records')
+            .update({
+              status: 'failed',
+              error_message: 'Transcription failed: ' + error.message,
+            })
+            .eq('id', taskId)
+        })
+        
+        console.log('✅ Transcription process started directly')
+      } else {
+        // In development, use HTTP call
+        const transcribeResponse = await fetch(`${baseUrl}/api/transcribe`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            taskId,
+            fileName,
+            originalFilename: file.originalFilename,
+            fileSize: file.size,
+          }),
+        })
+        
+        console.log('🎵 Transcribe response status:', transcribeResponse.status)
+      }
+    } catch (error) {
       console.error('❌ Transcription trigger error:', error)
+      
       // Update database with error
-      supabase
+      await supabase
         .from('transcription_records')
         .update({
           status: 'failed',
-          error_message: 'Failed to start transcription process',
+          error_message: 'Failed to start transcription process: ' + error.message,
         })
         .eq('id', taskId)
-    })
+    }
 
     console.log('✅ Upload completed successfully')
     return res.status(200).json({
