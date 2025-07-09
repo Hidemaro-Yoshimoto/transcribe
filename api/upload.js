@@ -20,7 +20,7 @@ export const config = {
     bodyParser: false,
     responseLimit: false,
   },
-  maxDuration: 300, // 5 minutes
+  maxDuration: 900, // 15 minutes (for larger files)
 }
 
 export default async function handler(req, res) {
@@ -32,9 +32,9 @@ export default async function handler(req, res) {
 
   try {
     console.log('📝 Starting file processing...')
-    // Parse form data - Vercel has 4.5MB limit for serverless functions
+    // Parse form data - handling large files up to 400MB
     const form = formidable({
-      maxFileSize: 25 * 1024 * 1024, // 25MB (safe limit for Vercel)
+      maxFileSize: 400 * 1024 * 1024, // 400MB
     })
 
     const [fields, files] = await form.parse(req)
@@ -301,7 +301,7 @@ export default async function handler(req, res) {
           message: 'File uploaded successfully. Processing started.',
         })
       }
-    }, 50000) // 50 seconds timeout
+    }, 120000) // 2 minutes timeout (for larger files)
     
     try {
       // Attempt full transcription
