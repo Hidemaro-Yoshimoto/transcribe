@@ -20,7 +20,7 @@ export const config = {
     bodyParser: false,
     responseLimit: false,
   },
-  maxDuration: 60,
+  maxDuration: 300, // 5 minutes
 }
 
 export default async function handler(req, res) {
@@ -260,33 +260,78 @@ export default async function handler(req, res) {
     
     console.log('✅ Upload completed successfully')
     
-    // Return response immediately
-    res.status(200).json({
-      task_id: taskId,
-      message: 'File uploaded successfully. Processing started.',
-    })
+    // Start transcription immediately before returning response
+    console.log('🚀 Starting transcription before response...')
     
-    // Start transcription after response is sent
-    console.log('🚀 Starting transcription after response...')
+    // Start transcription - at least update status synchronously
+    try {
+      console.log('📝 Updating status to processing synchronously...')
+      const { error: statusError } = await supabase
+        .from('transcription_records')
+        .update({ status: 'processing' })
+        .eq('id', taskId)
+      
+      if (statusError) {
+        console.error('❌ Status update error:', statusError)
+      } else {
+        console.log('✅ Status updated to processing synchronously')
+      }
+      
+      // Update progress to 20%
+      await supabase
+        .from('task_progress')
+        .upsert({
+          task_id: taskId,
+          progress: 20,
+          message: 'Processing started...',
+          updated_at: new Date().toISOString(),
+        })
+        
+      console.log('📊 Progress updated to 20%')
+    } catch (syncError) {
+      console.error('❌ Synchronous processing error:', syncError)
+    }
     
-    // Try multiple approaches to ensure transcription starts
-    startTranscription().catch(error => {
-      console.error('❌ Transcription startup error:', error)
-    })
+    // Try full transcription process synchronously (with timeout protection)
+    const timeoutId = setTimeout(() => {
+      console.log('⏰ Transcription timeout - returning response')
+      if (!res.headersSent) {
+        res.status(200).json({
+          task_id: taskId,
+          message: 'File uploaded successfully. Processing started.',
+        })
+      }
+    }, 50000) // 50 seconds timeout
     
-    setImmediate(() => {
-      console.log('🔄 setImmediate transcription trigger')
+    try {
+      // Attempt full transcription
+      await startTranscription()
+      clearTimeout(timeoutId)
+      
+      // If successful, return completed response
+      if (!res.headersSent) {
+        return res.status(200).json({
+          task_id: taskId,
+          message: 'File uploaded and transcription completed successfully.',
+        })
+      }
+    } catch (fullTranscriptionError) {
+      console.error('❌ Full transcription failed:', fullTranscriptionError)
+      clearTimeout(timeoutId)
+      
+      // Start background transcription as fallback
       startTranscription().catch(error => {
-        console.error('❌ setImmediate transcription error:', error)
+        console.error('❌ Background transcription fallback error:', error)
       })
-    })
-    
-    setTimeout(() => {
-      console.log('⏰ setTimeout transcription trigger')
-      startTranscription().catch(error => {
-        console.error('❌ setTimeout transcription error:', error)
-      })
-    }, 100)
+      
+      // Return processing response
+      if (!res.headersSent) {
+        return res.status(200).json({
+          task_id: taskId,
+          message: 'File uploaded successfully. Processing in background.',
+        })
+      }
+    }
 
   } catch (error) {
     console.error('Upload error:', error)
