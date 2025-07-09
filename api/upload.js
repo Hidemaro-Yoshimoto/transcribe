@@ -134,16 +134,30 @@ export default async function handler(req, res) {
     // Start transcription process directly in upload function
     console.log('🔄 Starting transcription process directly...')
     
-    // Use setTimeout to run transcription in background
-    setTimeout(async () => {
+    // Immediately start transcription process (don't use setTimeout)
+    let transcriptionStarted = false
+    const startTranscription = async () => {
+      if (transcriptionStarted) {
+        console.log('⚠️ Transcription already started, skipping...')
+        return
+      }
+      transcriptionStarted = true
+      
       try {
-        console.log('🎵 Starting background transcription...')
+        console.log('🎵 Starting background transcription for task:', taskId)
         
         // Update status to processing
-        await supabase
+        console.log('📝 Updating status to processing...')
+        const { error: statusError } = await supabase
           .from('transcription_records')
           .update({ status: 'processing' })
           .eq('id', taskId)
+        
+        if (statusError) {
+          console.error('❌ Status update error:', statusError)
+          throw statusError
+        }
+        console.log('✅ Status updated to processing')
 
         // Update progress to 50%
         await supabase
@@ -242,13 +256,37 @@ export default async function handler(req, res) {
           })
           .eq('id', taskId)
       }
-    }, 1000) // Start after 1 second delay
-
+    }
+    
     console.log('✅ Upload completed successfully')
-    return res.status(200).json({
+    
+    // Return response immediately
+    res.status(200).json({
       task_id: taskId,
       message: 'File uploaded successfully. Processing started.',
     })
+    
+    // Start transcription after response is sent
+    console.log('🚀 Starting transcription after response...')
+    
+    // Try multiple approaches to ensure transcription starts
+    startTranscription().catch(error => {
+      console.error('❌ Transcription startup error:', error)
+    })
+    
+    setImmediate(() => {
+      console.log('🔄 setImmediate transcription trigger')
+      startTranscription().catch(error => {
+        console.error('❌ setImmediate transcription error:', error)
+      })
+    })
+    
+    setTimeout(() => {
+      console.log('⏰ setTimeout transcription trigger')
+      startTranscription().catch(error => {
+        console.error('❌ setTimeout transcription error:', error)
+      })
+    }, 100)
 
   } catch (error) {
     console.error('Upload error:', error)
