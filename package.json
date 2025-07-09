@@ -1,0 +1,23 @@
+{
+  "name": "transcribe-app-vercel",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "cd frontend && npm run build",
+    "start": "vercel --prod",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "formidable": "^3.5.1",
+    "fluent-ffmpeg": "^2.1.2",
+    "openai": "^4.24.1",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/formidable": "^3.4.5",
+    "@types/fluent-ffmpeg": "^2.1.24",
+    "@types/uuid": "^9.0.7"
+  }
+}
