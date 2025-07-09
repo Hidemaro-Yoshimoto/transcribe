@@ -74,12 +74,23 @@ export default async function handler(req, res) {
       throw dbError
     }
 
-    // Trigger transcription function
+    // Initialize progress
+    await supabase
+      .from('task_progress')
+      .insert({
+        task_id: taskId,
+        progress: 10,
+        message: 'File uploaded successfully. Starting transcription...',
+        updated_at: new Date().toISOString(),
+      })
+
+    // Start transcription process (fire and forget)
     const baseUrl = process.env.VERCEL_URL 
       ? `https://${process.env.VERCEL_URL}` 
       : 'http://localhost:3000'
     
-    const transcriptionResponse = await fetch(`${baseUrl}/api/transcribe`, {
+    // Don't wait for the response - fire and forget
+    fetch(`${baseUrl}/api/transcribe`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -88,6 +99,16 @@ export default async function handler(req, res) {
         originalFilename: file.originalFilename,
         fileSize: file.size,
       }),
+    }).catch(error => {
+      console.error('Transcription trigger error:', error)
+      // Update database with error
+      supabase
+        .from('transcription_records')
+        .update({
+          status: 'failed',
+          error_message: 'Failed to start transcription process',
+        })
+        .eq('id', taskId)
     })
 
     return res.status(200).json({
