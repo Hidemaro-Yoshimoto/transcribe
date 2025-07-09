@@ -49,13 +49,12 @@ const MinimalSidebar = ({
               className="flex items-center space-x-3 w-full text-left hover:opacity-80 transition-opacity"
             >
               <img 
-                src="../public/logo.png" 
+                src="/logo.png" 
                 alt="Logo" 
                 className="w-8 h-8 object-contain"
                 onError={(e) => {
                   // Fallback to text logo if image fails to load
                   e.target.style.display = 'none';
-                  e.target.nextSibling.style.display = 'block';
                 }}
               />
               <span className="text-lg font-semibold text-gray-900">Transcribe</span>

@@ -114,7 +114,7 @@ function App() {
         let errorMessage = 'アップロードに失敗しました';
         
         if (response.status === 413) {
-          errorMessage = 'ファイルサイズが大きすぎます。400MB以下のファイルをアップロードしてください。';
+          errorMessage = 'ファイルサイズが大きすぎます。25MB以下のファイルをアップロードしてください。';
         } else {
           try {
             const errorData = await response.json();

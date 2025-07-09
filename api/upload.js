@@ -11,7 +11,9 @@ const supabase = createClient(
 export const config = {
   api: {
     bodyParser: false,
+    responseLimit: false,
   },
+  maxDuration: 60,
 }
 
 export default async function handler(req, res) {
@@ -20,9 +22,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Parse form data
+    // Parse form data - Vercel has 4.5MB limit for serverless functions
     const form = formidable({
-      maxFileSize: 400 * 1024 * 1024, // 400MB
+      maxFileSize: 25 * 1024 * 1024, // 25MB (safe limit for Vercel)
     })
 
     const [fields, files] = await form.parse(req)

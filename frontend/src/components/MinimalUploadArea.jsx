@@ -5,10 +5,10 @@ const MinimalUploadArea = ({ onUpload, isUploading, hasActiveTask }) => {
   const onDrop = useCallback((acceptedFiles) => {
     if (acceptedFiles.length > 0) {
       const file = acceptedFiles[0];
-      const maxSize = 400 * 1024 * 1024; // 400MB
+      const maxSize = 25 * 1024 * 1024; // 25MB (Vercel制限)
       
       if (file.size > maxSize) {
-        alert('ファイルサイズが大きすぎます。400MB以下のファイルをアップロードしてください。');
+        alert('ファイルサイズが大きすぎます。25MB以下のファイルをアップロードしてください。');
         return;
       }
       
@@ -23,7 +23,7 @@ const MinimalUploadArea = ({ onUpload, isUploading, hasActiveTask }) => {
       'video/*': ['.mp4', '.avi', '.mov', '.mkv']
     },
     maxFiles: 1,
-    maxSize: 400 * 1024 * 1024, // 400MB
+    maxSize: 25 * 1024 * 1024, // 25MB (Vercel制限)
     disabled: isUploading || hasActiveTask
   });
 
@@ -81,7 +81,7 @@ const MinimalUploadArea = ({ onUpload, isUploading, hasActiveTask }) => {
                 または、ファイルをここにドラッグ&ドロップ
               </p>
               <p className="text-xs text-gray-400 break-words">
-                MP3, WAV, M4A, MP4, AVI, MOV, MKV • 最大 400MB
+                MP3, WAV, M4A, MP4, AVI, MOV, MKV • 最大 25MB
               </p>
             </div>
           </div>
