@@ -4,7 +4,15 @@ import { useDropzone } from 'react-dropzone';
 const MinimalUploadArea = ({ onUpload, isUploading, hasActiveTask }) => {
   const onDrop = useCallback((acceptedFiles) => {
     if (acceptedFiles.length > 0) {
-      onUpload(acceptedFiles[0]);
+      const file = acceptedFiles[0];
+      const maxSize = 400 * 1024 * 1024; // 400MB
+      
+      if (file.size > maxSize) {
+        alert('ファイルサイズが大きすぎます。400MB以下のファイルをアップロードしてください。');
+        return;
+      }
+      
+      onUpload(file);
     }
   }, [onUpload]);
 
@@ -15,6 +23,7 @@ const MinimalUploadArea = ({ onUpload, isUploading, hasActiveTask }) => {
       'video/*': ['.mp4', '.avi', '.mov', '.mkv']
     },
     maxFiles: 1,
+    maxSize: 400 * 1024 * 1024, // 400MB
     disabled: isUploading || hasActiveTask
   });
 

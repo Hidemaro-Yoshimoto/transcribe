@@ -111,8 +111,21 @@ function App() {
         });
         showNotification('ファイルがアップロードされました', 'success');
       } else {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'アップロードに失敗しました');
+        let errorMessage = 'アップロードに失敗しました';
+        
+        if (response.status === 413) {
+          errorMessage = 'ファイルサイズが大きすぎます。400MB以下のファイルをアップロードしてください。';
+        } else {
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorData.detail || errorMessage;
+          } catch (parseError) {
+            // JSONパースできない場合はステータスコードベースのメッセージ
+            errorMessage = `サーバーエラー (${response.status}): ${errorMessage}`;
+          }
+        }
+        
+        throw new Error(errorMessage);
       }
     } catch (error) {
       console.error('アップロードエラー:', error);
