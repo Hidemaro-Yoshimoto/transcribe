@@ -106,70 +106,64 @@ export default async function handler(req, res) {
       })
 
     // Start transcription process
-    const baseUrl = process.env.VERCEL_URL 
-      ? (process.env.VERCEL_URL.startsWith('http') ? process.env.VERCEL_URL : `https://${process.env.VERCEL_URL}`)
-      : (req.headers.origin || 'http://localhost:3000')
+    let baseUrl
+    if (process.env.VERCEL_URL) {
+      baseUrl = process.env.VERCEL_URL.startsWith('http') ? process.env.VERCEL_URL : `https://${process.env.VERCEL_URL}`
+    } else if (req.headers.host) {
+      baseUrl = `https://${req.headers.host}`
+    } else {
+      baseUrl = req.headers.origin || 'http://localhost:3000'
+    }
     
     console.log('🚀 Triggering transcription process:', `${baseUrl}/api/transcribe`)
     console.log('🔧 Environment info:', {
       vercelUrl: process.env.VERCEL_URL,
       origin: req.headers.origin,
       host: req.headers.host,
-      finalUrl: baseUrl
+      finalUrl: baseUrl,
+      protocol: req.headers['x-forwarded-proto'] || 'http'
     })
     
-    // Try to start transcription process
+    // Try to start transcription process via HTTP
     try {
-      // Alternative approach: Call transcribe directly
-      if (process.env.NODE_ENV === 'production') {
-        // In production, try internal function call first
-        console.log('🔄 Attempting direct transcription call...')
+      console.log('🔄 Starting transcription via HTTP call...')
+      
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 seconds timeout
+      
+      const transcribeResponse = await fetch(`${baseUrl}/api/transcribe`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'User-Agent': 'Vercel-Internal-Call'
+        },
+        body: JSON.stringify({
+          taskId,
+          fileName,
+          originalFilename: file.originalFilename,
+          fileSize: file.size,
+        }),
+        signal: controller.signal
+      })
+      
+      clearTimeout(timeoutId)
+      
+      console.log('🎵 Transcribe response status:', transcribeResponse.status)
+      
+      if (!transcribeResponse.ok) {
+        const errorText = await transcribeResponse.text()
+        console.error('❌ Transcribe response error:', errorText)
         
-        // Import and call transcribe function directly
-        const transcribeHandler = (await import('./transcribe.js')).default
-        
-        const mockTranscribeReq = {
-          method: 'POST',
-          body: {
-            taskId,
-            fileName,
-            originalFilename: file.originalFilename,
-            fileSize: file.size,
-          }
-        }
-        
-        const mockTranscribeRes = {
-          status: (code) => ({ json: (data) => console.log('Transcribe result:', code, data) }),
-          json: (data) => console.log('Transcribe json:', data)
-        }
-        
-        // Start transcription in background (don't await)
-        transcribeHandler(mockTranscribeReq, mockTranscribeRes).catch(error => {
-          console.error('❌ Direct transcription error:', error)
-          supabase
-            .from('transcription_records')
-            .update({
-              status: 'failed',
-              error_message: 'Transcription failed: ' + error.message,
-            })
-            .eq('id', taskId)
-        })
-        
-        console.log('✅ Transcription process started directly')
+        // Update database with error
+        await supabase
+          .from('transcription_records')
+          .update({
+            status: 'failed',
+            error_message: `Transcription HTTP call failed: ${transcribeResponse.status} - ${errorText}`,
+          })
+          .eq('id', taskId)
       } else {
-        // In development, use HTTP call
-        const transcribeResponse = await fetch(`${baseUrl}/api/transcribe`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            taskId,
-            fileName,
-            originalFilename: file.originalFilename,
-            fileSize: file.size,
-          }),
-        })
-        
-        console.log('🎵 Transcribe response status:', transcribeResponse.status)
+        console.log('✅ Transcription HTTP call successful')
       }
     } catch (error) {
       console.error('❌ Transcription trigger error:', error)
