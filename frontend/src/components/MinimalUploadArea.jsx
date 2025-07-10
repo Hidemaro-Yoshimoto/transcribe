@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { UploadService } from '../lib/uploadService';
 
-const MinimalUploadArea = ({ onUpload, isUploading, hasActiveTask, recentTranscription, onDownload, showNotification }) => {
+const MinimalUploadArea = ({ onUpload, isUploading, hasActiveTask, recentTranscription, onDownload, showNotification, onUploadProgress }) => {
   const onDrop = useCallback(async (acceptedFiles) => {
     if (acceptedFiles.length > 0) {
       const file = acceptedFiles[0];
@@ -13,17 +13,24 @@ const MinimalUploadArea = ({ onUpload, isUploading, hasActiveTask, recentTranscr
         return;
       }
       
-      // Use direct upload service
+      // Use direct upload service with progress tracking
       try {
         console.log('🚀 Starting direct upload process...');
-        showNotification('アップロード開始中...', 'info');
         
-        // Step 1: Upload directly to Supabase
-        const uploadResult = await UploadService.uploadFileDirectly(file);
+        // Progress callback for upload steps
+        const handleProgress = (progressData) => {
+          console.log('📊 Upload progress:', progressData);
+          if (onUploadProgress) {
+            onUploadProgress(progressData);
+          }
+        };
+        
+        // Step 1: Upload directly to Supabase with progress
+        const uploadResult = await UploadService.uploadFileDirectly(file, handleProgress);
         console.log('✅ Direct upload completed:', uploadResult);
         
-        // Step 2: Create transcription task
-        const taskResult = await UploadService.createTranscriptionTask(uploadResult);
+        // Step 2: Create transcription task with progress
+        const taskResult = await UploadService.createTranscriptionTask(uploadResult, handleProgress);
         console.log('✅ Task created:', taskResult);
         
         // Call parent onUpload with task info
@@ -35,10 +42,28 @@ const MinimalUploadArea = ({ onUpload, isUploading, hasActiveTask, recentTranscr
         
       } catch (error) {
         console.error('❌ Direct upload failed:', error);
-        showNotification(`アップロードに失敗しました: ${error.message}`, 'error');
+        
+        // Show detailed error message
+        let userFriendlyMessage = error.message;
+        if (error.message?.includes('network')) {
+          userFriendlyMessage = 'ネットワークエラーが発生しました。インターネット接続を確認してください。';
+        } else if (error.message?.includes('timeout')) {
+          userFriendlyMessage = 'アップロードがタイムアウトしました。ファイルサイズが大きい場合は時間がかかることがあります。';
+        }
+        
+        showNotification(userFriendlyMessage, 'error');
+        
+        // Reset progress on error
+        if (onUploadProgress) {
+          onUploadProgress({
+            stage: 'error',
+            progress: 0,
+            message: userFriendlyMessage
+          });
+        }
       }
     }
-  }, [onUpload, showNotification]);
+  }, [onUpload, showNotification, onUploadProgress]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
